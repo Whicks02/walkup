@@ -44,13 +44,43 @@ differ per platform.
 
 ### Device profiles
 
-Built into `@walkup/core` (`packages/core/src/profiles.ts`):
+Built into `@walkup/core` (`packages/core/src/profiles.ts`). Each profile also has a
+`transport`:
 
-- **Sony Walkman NW-A/ZX (Hi-Res)** — MP3, AAC/M4A, WMA, FLAC, WAV, AIFF, OGG, DSD, ALAC.
-- **Sony Walkman NW-E/S (basic)** — MP3, WMA, AAC/M4A.
-- **Generic USB music player** — MP3, WAV, no required folder layout.
+- **Sony Walkman NW-A/ZX (Hi-Res)** — `msc` (USB Mass Storage). MP3, AAC/M4A, WMA, FLAC,
+  WAV, AIFF, OGG, DSD, ALAC.
+- **Sony Walkman NW-E/S (MTP)** — `mtp`. Entry-level Walkmans (NW-E507, NW-E505, NW-S
+  series). MP3, WMA, AAC/M4A. See **MTP support** below — this is a fundamentally
+  different, higher-risk transfer path than the mass-storage profiles.
+- **Generic USB music player** — `msc`. MP3, WAV, no required folder layout.
 
 Anything outside a profile's native formats is transcoded to MP3 before transfer.
+
+### MTP support (Windows only, experimental)
+
+Some Walkmans — notably the older NW-E/S series — don't mount as a normal drive at all.
+They connect over **MTP** (Media Transfer Protocol), which has no filesystem to copy
+files onto. This app cannot treat an MTP device like a USB drive; it needs a
+protocol-aware transfer path instead, and that path only exists in the **desktop app,
+on Windows**:
+
+- The web app cannot do this at all — browsers have no MTP access whatsoever, by
+  design, regardless of browser or OS. When an `mtp`-transport profile is selected,
+  the web app disables transfer and explains why instead of pretending to try.
+- The desktop app implements MTP transfer via Explorer's Shell/COM automation
+  (`packages/desktop/src/main/mtp/`) — the same mechanism as manually dragging a file
+  onto the device in Explorer, scripted through PowerShell (`Shell.Application`,
+  `CopyHere`). This avoids requiring native module compilation or replacing Windows'
+  MTP driver with WinUSB, but it means `mtp:list`/`mtp:transfer` only work on
+  `process.platform === 'win32'` — they throw immediately elsewhere.
+
+**Known limitation, not just a bug to fix later:** community reports on the NW-E507
+specifically indicate that some of these devices only register new tracks in their
+on-device song index when loaded via Sony's own SonicStage or MP3 File Manager — a
+plain MTP object write (including this app's) can transfer the file successfully and
+still not make it appear on the device's screen. If that happens, it's this device's
+own indexing behavior, not a bug in the transfer — SonicStage/MP3 File Manager remain
+the reliable fallback for that specific case.
 
 ## Getting started
 

@@ -215,10 +215,19 @@ function Workspace() {
           </label>
         </div>
         <p className="hint">{profile.description}</p>
-        <div className="row">
-          <button onClick={handlePickTarget}>Choose Walkman Drive…</button>
-          <span className="target-path">{targetHandle?.name ?? 'No target selected'}</span>
-        </div>
+        {profile.transport === 'mtp' ? (
+          <p className="hint hint-warning">
+            This device connects over MTP, not USB Mass Storage — there's no mounted drive for a browser to
+            write to. Browsers have no MTP access at all (it's not just unsupported here, it's not possible
+            from any web page). Use the WalkUp desktop app instead, which talks to MTP devices directly
+            (Windows only).
+          </p>
+        ) : (
+          <div className="row">
+            <button onClick={handlePickTarget}>Choose Walkman Drive…</button>
+            <span className="target-path">{targetHandle?.name ?? 'No target selected'}</span>
+          </div>
+        )}
       </section>
 
       <section className="panel">
@@ -226,7 +235,7 @@ function Workspace() {
         <button
           className="primary"
           onClick={handleTransfer}
-          disabled={!targetHandle || includedCount === 0 || transferring}
+          disabled={profile.transport === 'mtp' || !targetHandle || includedCount === 0 || transferring}
         >
           {transferring ? 'Transferring…' : `Start Transfer (${includedCount} tracks)`}
         </button>

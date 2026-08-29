@@ -92,8 +92,47 @@ npm install
 
 ```
 npm run dev:desktop      # electron-vite dev, hot reload
-npm run build --workspace packages/desktop   # production build (out/)
+npm run build --workspace packages/desktop   # production build (out/), unpacked, no installer
 ```
+
+#### Building a Windows .exe
+
+```
+npm run build:core       # core must be built first (desktop depends on the compiled dist/)
+npm run dist:win --workspace packages/desktop
+```
+
+Produces two files in `packages/desktop/release/`:
+
+- **`WalkUp Setup <version>.exe`** — NSIS installer (Start Menu/desktop shortcut, uninstaller).
+- **`WalkUp <version>.exe`** — portable build, no install required, just run it.
+
+This works cross-platform (including from Linux/macOS, which is how it was built and
+verified for this repo) via `electron-builder`, with no code signing configured — expect
+an "Unknown publisher" SmartScreen prompt on first run on Windows, since the exe isn't
+signed with a certificate. Building the NSIS installer target from a non-Windows host
+requires **Wine** (`apt install wine wine32:i386` on Debian/Ubuntu, needed because
+electron-builder verifies the installer by briefly running it) — building only the
+`portable` target does not need Wine.
+
+**Cross-platform build gotcha:** `ffmpeg-static`'s postinstall script downloads a
+prebuilt `ffmpeg` binary matching whatever OS `npm install` ran on — not the platform
+you're packaging for. Building the Windows `.exe` from Linux/macOS with a plain
+`npm install` bundles a Linux/macOS ffmpeg into the Windows package, which can't
+execute there (transcoding would silently fail on the actual Walkman-connected
+machine). Fetch the Windows binary explicitly before running `dist:win` from a
+non-Windows host:
+
+```
+curl -L -o /tmp/ffmpeg-win32-x64.gz \
+  https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1.1/ffmpeg-win32-x64.gz
+gunzip -c /tmp/ffmpeg-win32-x64.gz > node_modules/ffmpeg-static/ffmpeg.exe
+```
+
+(check `node_modules/ffmpeg-static/package.json`'s `ffmpeg-static["binary-release-tag"]`
+for the current release tag if this repo's ffmpeg-static version has moved on). The
+`files` list in `packages/desktop/package.json`'s `build` config excludes the
+platform-native `ffmpeg` binary from the Windows build so only `ffmpeg.exe` ships.
 
 ### Web app
 
@@ -116,6 +155,6 @@ npm run test --workspace packages/core
 - In-browser transcoding (ffmpeg.wasm) is significantly slower than the desktop app's
   native ffmpeg — expect the web app to be best for small libraries or MP3-only
   collections, and the desktop app for large/mixed-format libraries.
-- Neither app is currently packaged for distribution (no installer/DMG/AppImage) —
-  `electron-vite build` produces the app bundle, and packaging with `electron-builder`
-  can be added if you need a distributable installer.
+- The desktop app packages to a Windows `.exe` (installer and portable) via
+  `electron-builder` — see **Building a Windows .exe** above. macOS/Linux packaging
+  targets (`dmg`, `AppImage`, etc.) aren't configured yet, only `win`.

@@ -95,6 +95,16 @@ npm run dev:desktop      # electron-vite dev, hot reload
 npm run build --workspace packages/desktop   # production build (out/), unpacked, no installer
 ```
 
+#### Prebuilt download
+
+Prebuilt Windows binaries (v0.1.0) are checked into [`releases/`](releases/) so you can
+grab them straight from GitHub without building anything — open the file in GitHub and
+use "Download raw file". They're **not code-signed**, so Windows SmartScreen will show
+an "Unknown publisher" warning on first run; that's expected for an unsigned build, not
+a sign anything is broken. These are a convenience snapshot, not an auto-updating
+release channel — after any code change, rebuild with the steps below rather than
+trusting `releases/` to be current.
+
 #### Building a Windows .exe
 
 ```

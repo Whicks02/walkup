@@ -1,0 +1,20 @@
+{
+  "name": "walkup",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Manage and upload a local music library onto a Sony Walkman (or similar USB mass-storage/MTP music player)",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace packages/core && npm run build --workspace packages/desktop && npm run build --workspace packages/web",
+    "build:core": "npm run build --workspace packages/core",
+    "dev:desktop": "npm run dev --workspace packages/desktop",
+    "dev:web": "npm run dev --workspace packages/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

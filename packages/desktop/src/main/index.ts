@@ -4,6 +4,8 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import type { Track, TransferPlan } from '@walkup/core';
 import { scanLibrary } from './library.js';
 import { runTransfer } from './transfer.js';
+import { listMtpDevices } from './mtp/list.js';
+import { runMtpTransfer } from './mtp/transfer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +49,25 @@ ipcMain.handle('transfer:run', async (event, plan: TransferPlan, targetRoot: str
   await runTransfer({
     plan,
     targetRoot,
+    bitrateKbps,
+    onProgress: (progress) => event.sender.send('transfer:progress', progress),
+  });
+});
+
+ipcMain.handle('mtp:list', async () => {
+  if (process.platform !== 'win32') {
+    throw new Error('MTP transfer is only supported on Windows in this app.');
+  }
+  return listMtpDevices();
+});
+
+ipcMain.handle('mtp:transfer', async (event, plan: TransferPlan, deviceName: string, bitrateKbps: number) => {
+  if (process.platform !== 'win32') {
+    throw new Error('MTP transfer is only supported on Windows in this app.');
+  }
+  await runMtpTransfer({
+    plan,
+    deviceName,
     bitrateKbps,
     onProgress: (progress) => event.sender.send('transfer:progress', progress),
   });

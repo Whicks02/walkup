@@ -3,6 +3,7 @@ import {
   BUILTIN_PROFILES,
   buildTransferPlan,
   isNativelySupported,
+  SONY_NW_E_SERIES,
   type Track,
   type TransferItemStatus,
 } from '@walkup/core';
@@ -19,10 +20,17 @@ export default function App() {
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
 
-  const [profileId, setProfileId] = useState(BUILTIN_PROFILES[0].id);
+  const [profileId, setProfileId] = useState(SONY_NW_E_SERIES.id);
   const profile = BUILTIN_PROFILES.find((p) => p.id === profileId) ?? BUILTIN_PROFILES[0];
-  const [targetFolder, setTargetFolder] = useState<string | null>(null);
   const [bitrate, setBitrate] = useState(192);
+
+  // USB Mass Storage target
+  const [targetFolder, setTargetFolder] = useState<string | null>(null);
+
+  // MTP target
+  const [mtpDevices, setMtpDevices] = useState<string[]>([]);
+  const [mtpDeviceName, setMtpDeviceName] = useState<string | null>(null);
+  const [mtpLoading, setMtpLoading] = useState(false);
 
   const [transferring, setTransferring] = useState(false);
   const [progress, setProgress] = useState<Map<string, TrackProgress>>(new Map());
@@ -44,6 +52,7 @@ export default function App() {
   );
 
   const includedCount = rows.filter((r) => r.included).length;
+  const targetReady = profile.transport === 'mtp' ? mtpDeviceName !== null : targetFolder !== null;
 
   async function handleAddSources() {
     const picked = await window.walkup.selectSourceFolders();
@@ -69,6 +78,21 @@ export default function App() {
     if (picked) setTargetFolder(picked);
   }
 
+  async function handleRefreshMtpDevices() {
+    setMtpLoading(true);
+    try {
+      const devices = await window.walkup.listMtpDevices();
+      setMtpDevices(devices.map((d) => d.name));
+      if (devices.length === 0) {
+        setLog((prev) => [...prev, 'No MTP devices found. Make sure the Walkman is plugged in and unlocked.']);
+      }
+    } catch (err) {
+      setLog((prev) => [...prev, `Failed to list MTP devices: ${err instanceof Error ? err.message : String(err)}`]);
+    } finally {
+      setMtpLoading(false);
+    }
+  }
+
   function toggleTrack(id: string) {
     setExcludedIds((prev) => {
       const next = new Set(prev);
@@ -83,7 +107,7 @@ export default function App() {
   }
 
   async function handleTransfer() {
-    if (!targetFolder) return;
+    if (!targetReady) return;
     const selected = tracks.filter((t) => !excludedIds.has(t.id));
     if (selected.length === 0) return;
 
@@ -95,7 +119,12 @@ export default function App() {
 
     setTransferring(true);
     setProgress(new Map());
-    setLog((prev) => [...prev, `Starting transfer of ${selected.length} tracks to ${targetFolder}…`]);
+    setLog((prev) => [
+      ...prev,
+      profile.transport === 'mtp'
+        ? `Starting MTP transfer of ${selected.length} tracks to "${mtpDeviceName}"…`
+        : `Starting transfer of ${selected.length} tracks to ${targetFolder}…`,
+    ]);
 
     const unsubscribe = window.walkup.onTransferProgress((event) => {
       setProgress((prev) => {
@@ -105,11 +134,18 @@ export default function App() {
       });
       if (event.status === 'error') {
         setLog((prev) => [...prev, `Error: ${event.message ?? 'unknown error'} (track ${event.trackId})`]);
+      } else if (event.message) {
+        const message = event.message;
+        setLog((prev) => [...prev, message]);
       }
     });
 
     try {
-      await window.walkup.runTransfer(plan, targetFolder, bitrate);
+      if (profile.transport === 'mtp') {
+        await window.walkup.runMtpTransfer(plan, mtpDeviceName!, bitrate);
+      } else {
+        await window.walkup.runTransfer(plan, targetFolder!, bitrate);
+      }
       setLog((prev) => [...prev, 'Transfer complete.']);
     } catch (err) {
       setLog((prev) => [...prev, `Transfer failed: ${err instanceof Error ? err.message : String(err)}`]);
@@ -155,7 +191,14 @@ export default function App() {
         <div className="row">
           <label>
             Device profile{' '}
-            <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
+            <select
+              value={profileId}
+              onChange={(e) => {
+                setProfileId(e.target.value);
+                setTargetFolder(null);
+                setMtpDeviceName(null);
+              }}
+            >
               {BUILTIN_PROFILES.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -175,24 +218,53 @@ export default function App() {
           </label>
         </div>
         <p className="hint">{profile.description}</p>
-        <div className="row">
-          <button onClick={handlePickTarget}>Choose Walkman Drive…</button>
-          <span className="target-path">{targetFolder ?? 'No target selected'}</span>
-        </div>
+
+        {profile.transport === 'msc' ? (
+          <div className="row">
+            <button onClick={handlePickTarget}>Choose Walkman Drive…</button>
+            <span className="target-path">{targetFolder ?? 'No target selected'}</span>
+          </div>
+        ) : (
+          <>
+            {window.walkup.platform !== 'win32' && (
+              <p className="hint hint-warning">
+                MTP transfer only works on Windows. This app is running on{' '}
+                {window.walkup.platform === 'darwin' ? 'macOS' : window.walkup.platform} — device detection below will fail.
+              </p>
+            )}
+            <p className="hint hint-warning">
+              MTP support is experimental: it writes files the same way dragging them onto the device in Explorer
+              would. Some older Walkmans (NW-E507 included) only pick up new tracks in their on-device song list
+              when loaded via SonicStage or Sony's MP3 File Manager — if files transfer here but don't show up on
+              the device, that's what's happening, and it isn't something this app can work around.
+            </p>
+            <div className="row">
+              <button onClick={handleRefreshMtpDevices} disabled={mtpLoading}>
+                {mtpLoading ? 'Searching…' : 'Refresh MTP Devices'}
+              </button>
+              <select
+                value={mtpDeviceName ?? ''}
+                onChange={(e) => setMtpDeviceName(e.target.value || null)}
+                disabled={mtpDevices.length === 0}
+              >
+                <option value="">{mtpDevices.length === 0 ? 'No devices found yet' : 'Select a device…'}</option>
+                {mtpDevices.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
       </section>
 
       <section className="panel">
         <h2>4. Transfer</h2>
-        <button
-          className="primary"
-          onClick={handleTransfer}
-          disabled={!targetFolder || includedCount === 0 || transferring}
-        >
+        <button className="primary" onClick={handleTransfer} disabled={!targetReady || includedCount === 0 || transferring}>
           {transferring ? 'Transferring…' : `Start Transfer (${includedCount} tracks)`}
         </button>
-        {log.length > 0 && (
-          <pre className="log">{log.join('\n')}</pre>
-        )}
+        {log.length > 0 && <pre className="log">{log.join('\n')}</pre>}
       </section>
     </div>
   );

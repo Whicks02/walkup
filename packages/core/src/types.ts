@@ -19,11 +19,20 @@ export interface Track {
   durationSec?: number;
 }
 
+/**
+ * How the device is reached over USB.
+ * - 'msc': mounts as a normal drive (USB Mass Storage) — plain file copy works.
+ * - 'mtp': Media Transfer Protocol — no mounted filesystem; requires a protocol-aware
+ *   transfer path (desktop only, Windows-only in this app; browsers cannot speak MTP).
+ */
+export type DeviceTransport = 'msc' | 'mtp';
+
 /** Which formats a given player can play natively, vs. what unsupported files should become. */
 export interface DeviceProfile {
   id: string;
   name: string;
   description: string;
+  transport: DeviceTransport;
   /** Lowercase extensions (no dot) the device can play without conversion. */
   nativeFormats: string[];
   /** Format unsupported files get transcoded to before transfer. */
@@ -83,4 +92,9 @@ export interface TransferProgressEvent {
   /** 0-1 progress within the current step (transcode or copy), when known. */
   fraction?: number;
   message?: string;
+}
+
+/** A detected MTP/portable device the user can pick as a transfer target. */
+export interface MtpDeviceInfo {
+  name: string;
 }

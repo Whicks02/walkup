@@ -3,6 +3,7 @@ import {
   BUILTIN_PROFILES,
   buildTransferPlan,
   isNativelySupported,
+  SONY_NW_E_SERIES,
   type Track,
   type TransferItemStatus,
 } from '@walkup/core';
@@ -19,7 +20,7 @@ export default function App() {
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   const [scanning, setScanning] = useState(false);
 
-  const [profileId, setProfileId] = useState(BUILTIN_PROFILES[0].id);
+  const [profileId, setProfileId] = useState(SONY_NW_E_SERIES.id);
   const profile = BUILTIN_PROFILES.find((p) => p.id === profileId) ?? BUILTIN_PROFILES[0];
   const [bitrate, setBitrate] = useState(192);
 
